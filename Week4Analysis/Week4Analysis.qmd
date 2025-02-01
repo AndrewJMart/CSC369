@@ -17,8 +17,8 @@ output-dir: docs
 
 This analysis explores the pixel data from the 2022 r/place event, focusing on identifying and interpreting the 3 most frequently placed pixel locations. By examining specific pixel coordinates and their color distributions, we uncover interpretations to why these specific pixels were so common.
 
-### Library Imports
 ```{python}
+# | echo: false
 import duckdb
 import pandas as pd
 import seaborn as sns
@@ -29,10 +29,9 @@ from tabulate import tabulate
 
 ```
 
-### Loading Parquet Into SQL Table
-
 ```{python}
 # | output: false
+# | echo: false
 conn = duckdb.connect()
 
 conn.execute(f"""
@@ -47,6 +46,10 @@ conn.execute(f"""
 ```{python}
 #| tbl-cap: Most Commonly Placed Pixels
 #| classes: styled-output
+#| echo: false
+#| message: false
+#| warning: false
+#| output: false
 
 common_pixel_query = """
     SELECT X, Y, COUNT(*) as count
@@ -60,35 +63,16 @@ common_pixel_result = conn.execute(common_pixel_query).fetchdf()
 # Get top 3 rows
 top_3_pixels = common_pixel_result.head(3)
 
-table_html = """
-<table class="styled-table">
-  <thead>
-    <tr>
-      <th>X Coordinate</th>
-      <th>Y Coordinate</th>
-      <th>Times Placed</th>
-    </tr>
-  </thead>
-  <tbody>
-"""
-
-for index, row in top_3_pixels.iterrows():
-    table_html += f"""
-    <tr>
-      <td>{row[0]}</td>
-      <td>{row[1]}</td>
-      <td>{row[2]}</td>
-    </tr>
-    """
-
-table_html += """
-  </tbody>
-</table>
-"""
-
-HTML(table_html)
+top_3_pixels.style.set_caption("Most Commonly Placed Pixels")
 
 ```
+
+
+| X   | Y   | Count |
+| --- | --- | ----- |
+| 0   | 0   | 98807 |
+| 359 | 564 | 69198 |
+| 349 | 564 | 55230 |
 
 
 While this table poses some intuitive values, such as (0,0), these values are not super descriptive. By providing a simple list like this, only a few "Why's" or questions may be sufficiently answered. The remaining values are shrouded in mystery, requiring better visualization to uncover these mysterious pixels. 
@@ -98,6 +82,7 @@ While this table poses some intuitive values, such as (0,0), these values are no
 ```{python}
 #| classes: styled-output
 #| fig-align: center  
+#| echo: false
 
 common_pixel_color_0_0_query = """
     SELECT pixel_color_english, COUNT(*) as count
@@ -133,7 +118,8 @@ Through a quick search online I found the Rplace atlas. By scrolling over to (34
 
 ```{python}
 #| classes: styled-output
-#| fig-align: center  
+#| fig-align: center
+#| echo: false
 
 common_pixel_color_349_564_query = """
     SELECT pixel_color_english, COUNT(*) as count
