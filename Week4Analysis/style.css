@@ -1,0 +1,33 @@
+  .styled-output .cell-output pre {
+    max-width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .table-container {  /* Style the container div */
+    margin: 0; /* Remove any default margins */
+    padding: 0; /* Remove any default padding */
+    overflow-x: auto; /* Add horizontal scroll if table is too wide */
+  }
+  
+  .styled-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0; /* Remove margins from the table itself as well */
+  }  
+  
+  .styled-table th, .styled-table td {
+    padding: 8px;
+    text-align: left; /* Or center, as you prefer */
+    border-bottom: 1px solid #ddd; /* Light gray border for rows */
+  }
+  
+  .styled-table th {
+    background-color: #f2f2f2; /* Light gray background for header */
+    font-weight: bold;
+  }
+  
+  /* Optional: Hover effect */
+  .styled-table tr:hover {
+    background-color: #f5f5f5;
+  }

@@ -1,0 +1,188 @@
+--- 
+title: "Week 4 Analysis"
+author: "Andrew Martinez"
+date: "January 31, 2025"
+format:
+  html:
+    code-fold: true
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+css: style.css
+--- 
+
+### Introduction
+
+This analysis explores the pixel data from the 2022 r/place event, focusing on identifying and interpreting the 3 most frequently placed pixel locations. By examining specific pixel coordinates and their color distributions, we uncover interpretations to why these specific pixels were so common.
+
+### Library Imports
+```{python}
+import duckdb
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+from IPython.display import HTML
+from tabulate import tabulate
+
+```
+
+### Loading Parquet Into SQL Table
+
+```{python}
+# | output: false
+conn = duckdb.connect()
+
+conn.execute(f"""
+    CREATE TABLE rplace AS
+    SELECT * from '../2022_rplace.parquet'
+    """)
+
+```
+
+### Generating Table To See Most Common Pixels!
+
+```{python}
+#| tbl-cap: Most Commonly Placed Pixels
+#| classes: styled-output
+
+common_pixel_query = """
+    SELECT X, Y, COUNT(*) as count
+    FROM rplace
+    GROUP BY X, Y
+    ORDER BY count DESC
+"""
+
+common_pixel_result = conn.execute(common_pixel_query).fetchdf()
+
+# Get top 3 rows
+top_3_pixels = common_pixel_result.head(3)
+
+table_html = """
+<table class="styled-table">
+  <thead>
+    <tr>
+      <th>X Coordinate</th>
+      <th>Y Coordinate</th>
+      <th>Times Placed</th>
+    </tr>
+  </thead>
+  <tbody>
+"""
+
+for index, row in top_3_pixels.iterrows():
+    table_html += f"""
+    <tr>
+      <td>{row[0]}</td>
+      <td>{row[1]}</td>
+      <td>{row[2]}</td>
+    </tr>
+    """
+
+table_html += """
+  </tbody>
+</table>
+"""
+
+HTML(table_html)
+
+```
+
+
+While this table poses some intuitive values, such as (0,0), these values are not super descriptive. By providing a simple list like this, only a few "Why's" or questions may be sufficiently answered. The remaining values are shrouded in mystery, requiring better visualization to uncover these mysterious pixels. 
+
+### Investigating (0,0)
+
+```{python}
+#| classes: styled-output
+#| fig-align: center  
+
+common_pixel_color_0_0_query = """
+    SELECT pixel_color_english, COUNT(*) as count
+    FROM rplace
+    WHERE X = 0 and Y = 0
+    GROUP BY pixel_color_english
+    ORDER BY count DESC
+"""
+
+top_left_color_df = conn.execute(common_pixel_color_0_0_query).fetchdf()
+
+fig, ax = plt.subplots()
+
+colors = top_left_color_df['pixel_color_english'].to_list()[0:5]
+counts = top_left_color_df['count'].to_list()[0:5]
+
+ax.bar(colors, counts, label=colors)
+
+ax.set_ylabel('Times Placed')
+ax.set_title('Most Common (0,0) Color Placements')
+
+plt.show()
+
+```
+
+Upon investigation, it seems that by far the most common color placement at (0,0) is white. This leads to a realtively mundane hypothesis, however a hypothesis nonetheless... With the hypothesis being that (0,0) is likely a common pixel for beginning redditors to crowd towards when placing their first pixel. Furthermore, the default color selected being white further supports this theory. Meaning, the reason why this is the most common placement on the Rplace canvas is that new players testing out how it works likely placed white pixels at the top left.
+
+### Investigating (349, 564), (359,564)
+
+![](OnePieceSkeleton.png){fig-alt="Drawing Of One Piece Skeleton" fig-align="center" width=20%}
+
+Through a quick search online I found the Rplace atlas. By scrolling over to (349, 564) and (359,564) I found that these pixels relate to the eyes of this One Piece graphic. While I know what these two pixels represent, further investigation must be done in order to figure out why these two specific pixels were so popular. 
+
+```{python}
+#| classes: styled-output
+#| fig-align: center  
+
+common_pixel_color_349_564_query = """
+    SELECT pixel_color_english, COUNT(*) as count
+    FROM rplace
+    WHERE X = 349 and Y = 564
+    GROUP BY pixel_color_english
+    ORDER BY count DESC
+"""
+
+common_pixel_color_359_564_query = """
+    SELECT pixel_color_english, COUNT(*) as count
+    FROM rplace
+    WHERE X = 359 and Y = 564
+    GROUP BY pixel_color_english
+    ORDER BY count DESC
+"""
+
+top_left_color_349_564_df = conn.execute(common_pixel_color_349_564_query).fetchdf()
+top_left_color_359_564_df = conn.execute(common_pixel_color_359_564_query).fetchdf()
+
+# Plot 1: (349, 564)
+fig1, ax1 = plt.subplots() 
+
+colors_349_564 = top_left_color_349_564_df['pixel_color_english'].to_list()[0:5]
+counts_349_564 = top_left_color_349_564_df['count'].to_list()[0:5]
+
+ax1.bar(colors_349_564, counts_349_564, label=colors_349_564)
+ax1.set_ylabel('Times Placed')
+ax1.set_title('Most Common (349, 564) Color Placements')
+
+plt.show()  
+
+# Plot 2: (359, 564)
+fig2, ax2 = plt.subplots() 
+
+colors_359_564 = top_left_color_359_564_df['pixel_color_english'].to_list()[0:5]
+counts_359_564 = top_left_color_359_564_df['count'].to_list()[0:5]
+
+ax2.bar(colors_359_564, counts_359_564, label=colors_359_564)
+ax2.set_ylabel('Times Placed')
+ax2.set_title('Most Common (359, 564) Color Placements')
+
+plt.show()
+
+```
+
+
+Taking a quick glance at the respective barplots reveals that by far the most common choices for color were white and turquoise. Because I am an internet degenerate, I have a fair amount of "domain knowledge"... and the only skeleton I skeleton I know with blue eyes is Sans from undertale. 
+
+![](SansUndertale.png){fig-alt="Sans From Undertale" fig-align="center" width=20%}
+
+As shown above, you can see that Sans is commonly pictured with one of his eyes being blue. So my working theory is that the undertale community was attempting to pull a fast one and vandalize quality One Piece art by turning the skull into a Sans skull. This would explain why the eyes were fluctuating between white and blue. 
+
