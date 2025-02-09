@@ -1,0 +1,286 @@
+--- 
+title: "Week 5 Analysis"
+author: "Andrew Martinez"
+date: "feb 8, 2025"
+format:
+  html:
+    code-fold: true
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+css: style.css
+output-dir: docs
+--- 
+
+### Introduction
+
+
+### Analyzing The Distribution Of Users
+
+```{python}
+# | echo: false
+import duckdb
+from IPython.display import HTML
+from tabulate import tabulate
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import polars as pl
+import matplotlib.ticker as ticker
+
+```
+
+
+```{python}
+# | output: false
+# | echo: false
+
+conn = duckdb.connect()
+
+conn.execute(f"""
+    CREATE TABLE rplace AS
+    SELECT * from '../2022_rplace.parquet'
+    """)
+
+
+```
+
+
+```{python}
+#| echo: false
+#| message: false
+#| warning: false
+
+preprocessing_query = """
+    WITH user_pixel_counts AS (
+        SELECT 
+            user_id_int, 
+            COUNT(*) AS total_pixels_by_user
+        FROM rplace
+        GROUP BY user_id_int
+    ), ranked_users AS (
+        SELECT 
+            user_id_int, 
+            total_pixels_by_user,
+            PERCENT_RANK() OVER (ORDER BY total_pixels_by_user) AS percentile_rank
+        FROM user_pixel_counts
+    )
+    SELECT 
+        rplace.*, 
+        FLOOR(X / 100) AS XQuad, 
+        FLOOR(Y / 100) AS YQuad, 
+        ru.total_pixels_by_user, 
+        ru.percentile_rank,
+        CASE 
+            WHEN ru.percentile_rank >= 0 AND ru.percentile_rank <= 0.25 THEN 1
+            WHEN ru.percentile_rank > 0.25 AND ru.percentile_rank <= 0.50 THEN 2
+            WHEN ru.percentile_rank > 0.50 AND ru.percentile_rank <= 0.75 THEN 3
+            WHEN ru.percentile_rank > 0.75 AND ru.percentile_rank <= 1 THEN 4
+        END AS percentile_group
+    FROM rplace
+    JOIN ranked_users AS ru ON rplace.user_id_int = ru.user_id_int;
+"""
+
+# Execute and fetch the dataframe
+base_df = conn.execute(preprocessing_query).fetchdf()
+
+base_pl_df = pl.from_pandas(base_df)
+```
+
+
+```{python}
+#| echo: false
+#| message: false
+#| warning: false
+
+# Remove duplicates, keeping only one row per user
+deduped_df = base_pl_df.unique(subset=['user_id_int'])
+
+# 1. Multiply 'percentile_rank' by 100 and cast to integer
+deduped_df = deduped_df.with_columns(
+    (pl.col('percentile_rank') * 100).cast(pl.Int32).alias('percentile_rank')
+)
+
+# 2. Calculate the average total pixels per user in each percentile rank
+avg_pixels_by_percentile = deduped_df.group_by('percentile_rank').agg(
+    pl.col('total_pixels_by_user').mean().alias('avg_pixels')
+)
+
+# Convert the result to numpy arrays for plotting
+percentile_ranks = avg_pixels_by_percentile['percentile_rank'].to_numpy()
+avg_pixels = avg_pixels_by_percentile['avg_pixels'].to_numpy()
+
+# 3. Plot the Average Pixels by Percentile Rank
+plt.figure(figsize=(8, 5))
+sns.barplot(x=percentile_ranks, y=avg_pixels, palette='Blues_d')
+
+# Customize the plot
+plt.xlabel("Percentile Rank")
+plt.ylabel("Average Total Pixels by User")
+plt.title("Average Pixels Placed Per Percentile Rank")
+
+# Show the plot
+plt.show()
+
+# 1. Plot the Distribution of Total Pixels by Users (with filter)
+plt.figure(figsize=(8, 5))
+
+# Filter the data to include only values between 0 and 200
+filtered_df = deduped_df.filter(pl.col('total_pixels_by_user') <= 200)
+
+sns.histplot(filtered_df['total_pixels_by_user'], kde=False, color='skyblue', bins=30)
+
+# Customize the plot
+plt.xlabel("Total Pixels by User (0-200)")
+plt.ylabel("Frequency")
+plt.title("Distribution of Total Pixels by Users (0-200)")
+
+# Show the plot
+plt.show()
+
+
+# 1. Plot the Distribution of Total Pixels by Users
+plt.figure(figsize=(8, 5))
+sns.histplot(deduped_df['total_pixels_by_user'], kde=False, color='skyblue', bins=30)
+
+# Customize the plot
+plt.xlabel("Total Pixels by User")
+plt.ylabel("Frequency")
+plt.title("Distribution of Total Pixels by Users")
+
+# Show the plot
+plt.show()
+
+# 2. Define the labels for the groups
+percentile_labels = {
+    1: "Noob",
+    2: "Gamer",
+    3: "Internet Vet",
+    4: "Lucas Pierce"
+}
+
+# 3. Count the occurrences of each percentile group based on unique users
+# Use `.agg()` with `pl.count()` to count occurrences
+group_counts = deduped_df.group_by('percentile_group').agg([
+    pl.count().alias('count')
+])
+
+# Convert group_counts to pandas for easier plotting
+group_counts_pd = group_counts.to_pandas()
+
+# 4. Plot the Distribution of User Activity Levels
+plt.figure(figsize=(8, 5))
+sns.barplot(data=group_counts_pd, x='percentile_group', y='count', palette='Blues_d')
+
+# Customize the plot
+plt.xlabel("User Type")
+plt.ylabel("Frequency")
+plt.title("Distribution of User Activity Levels")
+
+# Manually set the x-axis labels using the `percentile_labels` mapping
+plt.xticks(ticks=np.arange(4), labels=[percentile_labels[i+1] for i in range(4)])
+
+# Show the plot
+plt.show()
+
+# 5. Display the table showing the total number of unique users per percentile_group category
+group_counts
+
+# 6. Calculate the average number of pixels placed for a user by each percentile category
+avg_pixels_by_group = deduped_df.group_by('percentile_group').agg(
+    pl.col('total_pixels_by_user').mean().alias('avg_pixels_per_user')
+)
+
+# Convert the result to pandas for display
+avg_pixels_by_group_pd = avg_pixels_by_group.to_pandas()
+
+# Display the result
+print("Average Pixels Placed by User in Each Percentile Group:")
+print(avg_pixels_by_group_pd)
+
+```
+
+
+### Where are these groups of users placing on the RPlace Atlas?
+
+```{python}
+
+# Split the base dataframe into four groups based on percentile_group
+df_noob = base_pl_df.filter(pl.col("percentile_group") == 1)
+df_gamer = base_pl_df.filter(pl.col("percentile_group") == 2)
+df_internet_vet = base_pl_df.filter(pl.col("percentile_group") == 3)
+df_lucas_pierce = base_pl_df.filter(pl.col("percentile_group") == 4)
+
+# Function to create the heatmap of quadrant frequencies
+def plot_heatmap(df, title):
+    # Count the occurrences of each (QuadX, QuadY) combination
+    quadrant_counts = df.group_by(['XQuad', 'YQuad']).agg(pl.count().alias('count'))
+
+    # Sort the counts by highest count
+    sorted_counts = quadrant_counts.sort('count', descending=True)
+
+    # Get the total count of all quadrants for percentage calculation
+    total_count = sorted_counts.select(pl.col('count').sum()).to_numpy()[0][0]
+
+    # Get the top 5 quadrant combinations
+    top_5_quadrants = sorted_counts.head(5)
+
+    # Print the top 5 quadrant combinations with their count and percentage
+    print(f"Top 5 quadrant combinations for {title}:")
+    print(f"{'XQuad':<5} {'YQuad':<5} {'Count':<10} {'Percentage':<10}")
+    for row in top_5_quadrants.iter_rows():
+        x, y, count = row
+        percentage = (count / total_count) * 100
+        print(f"{x:<5} {y:<5} {count:<10} {percentage:>6.2f}%")
+
+    # Convert the counts into a 20x20 grid for the heatmap
+    heatmap_data = np.zeros((20, 20), dtype=int)  # Initialize as integer matrix
+
+    # Fill the heatmap data with the counts for each (QuadX, QuadY) pair
+    for row in quadrant_counts.iter_rows():
+        x, y, count = row
+        if int(x) == 20:
+            x = 19
+        if int(y) == 20:
+            y = 19
+
+        heatmap_data[int(x), int(y)] = count
+
+    # Create a new figure for each plot
+    plt.figure(figsize=(8, 6))
+    
+    # Plot heatmap
+    sns.heatmap(heatmap_data, annot=False, fmt='.0f', cmap='Blues', cbar=True)
+
+    # Use ScalarFormatter to display full values without scientific notation
+    plt.gca().tick_params(axis='both', labelsize=10)
+    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{int(x)}'))
+    plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{int(x)}'))
+
+    plt.title(title)
+    plt.xlabel('QuadX')
+    plt.ylabel('QuadY')
+
+    # Adjust xticks and yticks to start from 0 and go to 19
+    plt.xticks(np.arange(20))  # Set xticks to 0-19
+    plt.xticks(np.arange(20), labels=np.arange(0, 20), rotation=90)  # Label from 0 to 19
+    plt.yticks(np.arange(20))  # Set yticks to 0-19
+    plt.yticks(np.arange(20), labels=np.arange(0, 20), rotation=0)  # Label from 0 to 19
+
+    # Show the plot
+    plt.tight_layout()
+    plt.show()
+
+# Plot heatmaps for each of the four percentile groups separately
+plot_heatmap(df_noob, "Noobs Group (Percentile 1)")
+plot_heatmap(df_gamer, "Average Redditor Group (Percentile 2)")
+plot_heatmap(df_internet_vet, "Internet Vet Group (Percentile 3)")
+plot_heatmap(df_lucas_pierce, "Lucas Pierce Group (Percentile 4)")
+
+
+
+```
+
+
