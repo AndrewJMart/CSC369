@@ -34,5 +34,5 @@ This dataset contains the following relevant information:
 - Developer response and response timing (if applicable).
 - Game Title: Provides information on what game was actually reviewed (essential for project)
 
-**Dataset Source:** [Steam Reviews Dataset](https://www.kaggle.com/datasets)
+**Dataset Source:** [Steam Reviews Dataset](https://www.kaggle.com/datasets/kieranpoc/steam-reviews/data)
 
